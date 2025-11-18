@@ -1,6 +1,16 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Inter } from "next/font/google";
+// @ts-ignore: CSS module without type declarations
 import "./globals.css";
+import { CssBaseline, ThemeProvider, createTheme } from "@mui/material";
+import { CacheProvider } from "@emotion/react";
+import createEmotionCache from "@/lib/createEmotionCache";
+
+const inter = Inter({ subsets: ["latin"] });
+const theme = createTheme({
+  palette: { mode: "light" },
+  components: { /* customize if you want */ }
+});
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
