@@ -1,37 +1,47 @@
 "use client";
-import React, { useState, useCallback } from "react";
-import { Box, Paper, Typography, Button, LinearProgress, IconButton } from "@mui/material";
+import React, { useState, useCallback, useRef } from "react";
+import { Box, Paper, Typography, Button, LinearProgress, Alert, Stack } from "@mui/material";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
-import { v4 as uuidv4 } from "uuid";
-
-type UploadState = {
-  file?: File;
-  progress: number;
-  uploading: boolean;
-  error?: string;
-  previewUrl?: string;
-};
+import CloseIcon from "@mui/icons-material/Close";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import { useAppDispatch, useAppSelector } from "@/lib/store";
+import { uploadFile, clearError } from "@/lib/store/slices/invoiceSlice";
+import { validateUploadFile } from "@/lib/schemas/invoice.schema";
 
 export default function UploadCard() {
-  const [s, setS] = useState<UploadState>({ progress: 0, uploading: false });
+  const dispatch = useAppDispatch();
+  const { loading, error } = useAppSelector((state) => state.invoice);
+  const [file, setFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const onFile = useCallback((file?: File) => {
-    if (!file) return;
-    // validation
-    if (file.size > 10 * 1024 * 1024) {
-      setS({ ...s, error: "File must be <= 10MB" });
+  const onFile = useCallback((selectedFile?: File) => {
+    if (!selectedFile) return;
+
+    // Validate with Zod
+    const validation = validateUploadFile({ file: selectedFile });
+    if (!validation.success) {
+      const errorMsg = validation.error.errors[0].message;
+      dispatch(clearError());
+      alert(errorMsg);
       return;
     }
-    const accept = ["application/pdf", "image/png", "image/jpeg"];
-    if (!accept.includes(file.type)) {
-      setS({ ...s, error: "Only PDF, PNG, JPEG allowed" });
-      return;
-    }
+
+    setFile(selectedFile);
+    dispatch(clearError());
+
+    // Preview for images
     const reader = new FileReader();
-    reader.onload = (e) => setS({ ...s, file, previewUrl: typeof e.target?.result === "string" ? e.target?.result : undefined, error: undefined });
-    if (file.type.startsWith("image/")) reader.readAsDataURL(file);
-    else setS({ ...s, file, previewUrl: undefined, error: undefined });
-  }, [s]);
+    reader.onload = (e) => {
+      if (selectedFile.type.startsWith("image/")) {
+        setPreviewUrl(e.target?.result as string);
+      }
+    };
+    if (selectedFile.type.startsWith("image/")) {
+      reader.readAsDataURL(selectedFile);
+    }
+  }, [dispatch]);
 
   const handleDrop = (ev: React.DragEvent) => {
     ev.preventDefault();
@@ -44,87 +54,180 @@ export default function UploadCard() {
     if (f) onFile(f);
   };
 
+  const removeFile = () => {
+    setFile(null);
+    setPreviewUrl(null);
+    setProgress(0);
+    dispatch(clearError());
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
   const upload = async () => {
-    if (!s.file) return;
-    setS(prev => ({ ...prev, uploading: true, progress: 5 }));
-    try {
-      // create form data
-      const fd = new FormData();
-      fd.append("file", s.file, `${uuidv4()}-${s.file.name}`);
+    if (!file) return;
 
-      // Basic progress simulation if backend doesn't support progress events
-      const fakeProgress = () => new Promise<void>(res => {
-        let p = 10;
-        const t = setInterval(() => {
-          p += Math.random() * 15;
-          if (p >= 90) {
-            clearInterval(t);
-            res();
-          } else setS(prev => ({ ...prev, progress: Math.min(95, Math.round(p)) }));
-        }, 200);
+    setProgress(5);
+
+    // Simulate progress
+    const progressInterval = setInterval(() => {
+      setProgress((prev) => {
+        if (prev >= 90) {
+          clearInterval(progressInterval);
+          return 90;
+        }
+        return prev + Math.random() * 15;
       });
+    }, 200);
 
-      // trigger fake progress while fetch happens
-      const fetchPromise = fetch("/api/invoices/upload", { method: "POST", body: fd });
-      await Promise.race([fetchPromise, fakeProgress()]);
-      // if fetchPromise still in flight, await it
-      const res = await fetchPromise;
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || "Upload failed");
-      }
-      const json = await res.json();
-      setS({ file: undefined, progress: 100, uploading: false });
-      // redirect to invoice detail (backend will create id)
-      if (json?.id) {
-        window.location.href = `/invoices/${json.id}`;
-      } else {
-        // show success state
-        setTimeout(() => setS({ progress: 0, uploading: false }), 800);
+    try {
+      const result = await dispatch(uploadFile(file)).unwrap();
+      clearInterval(progressInterval);
+      setProgress(100);
+
+      // Redirect to invoice detail page
+      if (result?.id) {
+        setTimeout(() => {
+          window.location.href = `/invoices/${result.id}`;
+        }, 500);
       }
     } catch (err: any) {
-      setS({ ...s, uploading: false, error: err?.message ?? "Upload failed" });
+      clearInterval(progressInterval);
+      setProgress(0);
+      console.error("Upload failed:", err);
     }
   };
 
   return (
-    <Paper elevation={2} className="p-4">
-      <Typography variant="h6" className="mb-2">Upload Invoice</Typography>
+    <Paper
+      elevation={2}
+      sx={{
+        p: 3,
+        borderRadius: 2,
+        backgroundColor: "#fff",
+        transition: "all 0.2s ease",
+      }}
+    >
+      <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+        📄 Upload Invoice
+      </Typography>
 
-      <Box onDragOver={(e) => e.preventDefault()} onDrop={handleDrop} className="border-2 border-dashed border-slate-200 p-4 rounded">
-        <div className="flex items-center gap-4">
-          <CloudUploadIcon fontSize="large" />
-          <div>
-            <div className="text-sm text-slate-600">Drop PDF / PNG / JPG here or</div>
-            <label className="inline-block mt-2">
-              <input type="file" accept=".pdf,image/png,image/jpeg" onChange={handleSelect} hidden />
-              <Button variant="contained" size="small">Select file</Button>
-            </label>
-          </div>
-        </div>
+      <Box
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={handleDrop}
+        sx={{
+          border: "2px dashed",
+          borderColor: error ? "error.main" : "primary.light",
+          borderRadius: 2,
+          p: 3,
+          textAlign: "center",
+          backgroundColor: error ? "error.lighter" : "primary.lighter",
+          transition: "all 0.2s ease",
+          cursor: "pointer",
+        }}
+      >
+        {!file ? (
+          <Stack spacing={2} alignItems="center">
+            <CloudUploadIcon sx={{ fontSize: 48, color: "primary.main" }} />
+            <Box>
+              <Typography variant="body2" sx={{ color: "text.secondary", mb: 1 }}>
+                Drop your invoice here or
+              </Typography>
+              <label htmlFor="invoice-file-input">
+                <input
+                  id="invoice-file-input"
+                  ref={inputRef}
+                  type="file"
+                  accept=".pdf,image/png,image/jpeg"
+                  onChange={handleSelect}
+                  hidden
+                  disabled={loading}
+                />
+                <Button
+                  component="span"
+                  variant="contained"
+                  size="small"
+                  disabled={loading}
+                  sx={{ mt: 1 }}
+                >
+                  Select file
+                </Button>
+              </label>
+            </Box>
+            <Typography variant="caption" sx={{ color: "text.secondary" }}>
+              PDF, PNG, or JPEG • Max 10MB
+            </Typography>
+          </Stack>
+        ) : (
+          <Stack spacing={2}>
+            {previewUrl && (
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "center",
+                  mb: 2,
+                }}
+              >
+                <img
+                  src={previewUrl}
+                  alt="preview"
+                  style={{
+                    maxHeight: "160px",
+                    maxWidth: "100%",
+                    borderRadius: "8px",
+                    border: "1px solid #e0e0e0",
+                  }}
+                />
+              </Box>
+            )}
 
-        {s.previewUrl && (
-          <div className="mt-4">
-            <img src={s.previewUrl} alt="preview" className="max-h-40 object-contain border rounded" />
-          </div>
+            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <Box>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {file.name}
+                </Typography>
+                <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                  {(file.size / 1024).toFixed(0)} KB
+                </Typography>
+              </Box>
+              <Button
+                size="small"
+                onClick={removeFile}
+                disabled={loading}
+                startIcon={<CloseIcon />}
+              >
+                Remove
+              </Button>
+            </Box>
+
+            {loading && (
+              <Box>
+                <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                  <Typography variant="caption">Uploading...</Typography>
+                  <Typography variant="caption">{Math.round(progress)}%</Typography>
+                </Box>
+                <LinearProgress variant="determinate" value={progress} sx={{ height: 6, borderRadius: 3 }} />
+              </Box>
+            )}
+
+            {!loading && (
+              <Button
+                fullWidth
+                variant="contained"
+                size="medium"
+                onClick={upload}
+                startIcon={<CheckCircleIcon />}
+              >
+                Upload & Process
+              </Button>
+            )}
+          </Stack>
         )}
-
-        {s.file && (
-          <div className="mt-3 flex items-center justify-between">
-            <div>
-              <div className="font-medium">{s.file.name}</div>
-              <div className="text-xs text-slate-500">{(s.file.size / 1024).toFixed(0)} KB</div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button size="small" onClick={() => setS({ progress: 0, uploading: false })}>Remove</Button>
-              <Button size="small" variant="contained" disabled={s.uploading} onClick={upload}>Upload</Button>
-            </div>
-          </div>
-        )}
-
-        {s.uploading && <LinearProgress variant="determinate" value={s.progress} className="mt-3" />}
-        {s.error && <div className="text-sm text-red-600 mt-3">{s.error}</div>}
       </Box>
+
+      {error && (
+        <Alert severity="error" sx={{ mt: 2 }} onClose={() => dispatch(clearError())}>
+          {error}
+        </Alert>
+      )}
     </Paper>
   );
 }

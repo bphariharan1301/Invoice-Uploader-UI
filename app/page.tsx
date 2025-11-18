@@ -1,32 +1,61 @@
-import Image from "next/image";
+"use client";
+
 import UploadCard from "@/components/UploadCard";
-// import InvoiceCard from "@/components/InvoiceCard";
+import InvoiceCard from "@/components/InvoiceCard";
+import { Container, Box, Typography, Stack, CircularProgress, Alert } from "@mui/material";
+import { useInvoices } from "@/lib/hooks/useInvoices";
 
 export default function Home() {
-  const sampleInvoices = [
-    { id: "1", supplier_name: "Acme Inc.", invoice_number: "INV-1001", total: 1200, status: "EXTRACTED" },
-    { id: "2", supplier_name: "Globex", invoice_number: "2025-204", total: 450.5, status: "NEEDS_REVIEW" }
-  ];
+  const { invoices, loading, error } = useInvoices();
+
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Invoices</h1>
-        <div className="text-sm text-slate-500">Upload, review and save extracted invoices</div>
-      </header>
+    <Box sx={{ minHeight: "100vh", backgroundColor: "#f5f5f5", py: 4 }}>
+      <Container maxWidth="lg">
+        {/* Header */}
+        <Box sx={{ mb: 4 }}>
+          <Typography variant="h1" sx={{ mb: 1 }}>
+            Invoices
+          </Typography>
+          <Typography variant="body1" sx={{ color: "text.secondary" }}>
+            Upload, review and save extracted invoices seamlessly
+          </Typography>
+        </Box>
 
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="md:col-span-1">
-          <UploadCard />
-        </div>
+        {/* Main Grid */}
+        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "350px 1fr" }, gap: 3 }}>
+          {/* Upload Section */}
+          <Box sx={{ display: "flex", flexDirection: "column" }}>
+            <UploadCard />
+          </Box>
 
-        {/* <div className="md:col-span-2">
-          <div className="space-y-4">
-            {sampleInvoices.map(inv => (
-              <InvoiceCard key={inv.id} invoice={inv} />
-            ))}
-          </div>
-        </div> */}
-      </section>
-    </div>
+          {/* Invoice List Section */}
+          <Box sx={{ display: "flex", flexDirection: "column" }}>
+            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+              Recent Invoices
+            </Typography>
+
+            {loading ? (
+              <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+                <CircularProgress />
+              </Box>
+            ) : error ? (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {error}
+              </Alert>
+            ) : (
+              <Stack spacing={2}>
+                {invoices.length > 0 ? (
+                  invoices.map((inv) => <InvoiceCard key={inv.id} invoice={inv} />)
+                ) : (
+                  <Typography variant="body2" sx={{ color: "text.secondary", py: 4, textAlign: "center" }}>
+                    No invoices yet. Upload one to get started!
+                  </Typography>
+                )}
+              </Stack>
+            )}
+          </Box>
+        </Box>
+      </Container>
+    </Box>
   );
 }
