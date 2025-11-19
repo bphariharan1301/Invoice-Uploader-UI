@@ -10,7 +10,7 @@ import { validateUploadFile } from "@/lib/schemas/invoice.schema";
 
 export default function UploadCard() {
   const dispatch = useAppDispatch();
-  const { loading, error } = useAppSelector((state) => state.invoice);
+  const { loading, error } = useAppSelector((state: any) => state.invoice);
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
