@@ -4,6 +4,7 @@ import { Geist, Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import ThemeRegistry from "@/components/ThemeRegistry";
 import { ReduxProvider } from "@/lib/store/provider";
+import GlobalAlert from "@/components/GlobalAlert";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -34,6 +35,7 @@ export default function RootLayout({
       >
         <ReduxProvider>
           <ThemeRegistry>
+            <GlobalAlert />
             {children}
           </ThemeRegistry>
         </ReduxProvider>

@@ -2,11 +2,13 @@ import { configureStore } from '@reduxjs/toolkit';
 import { TypedUseSelectorHook, useDispatch, useSelector } from 'react-redux';
 import invoiceReducer from './slices/invoiceSlice';
 import uploadReducer from './slices/uploadSlice';
+import alertReducer from './slices/alertSlice';
 
 export const store = configureStore({
   reducer: {
     invoice: invoiceReducer,
     upload: uploadReducer,
+    alert: alertReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

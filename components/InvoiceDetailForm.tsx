@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
 	Paper,
 	TextField,
@@ -8,23 +8,20 @@ import {
 	Box,
 	Stack,
 	Divider,
-	Alert,
 } from "@mui/material";
 import SaveIcon from "@mui/icons-material/Save";
 import LineItemsEditor from "@/components/LineItemsEditor";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
 import { updateInvoice } from "@/lib/store/slices/invoiceSlice";
 import { validateInvoice } from "@/lib/schemas/invoice.schema";
+import { showAlert } from "@/lib/store/slices/alertSlice";
+import { useRouter } from "next/navigation";
 
 export default function InvoiceDetailForm({ invoice: initial }: any) {
 	const dispatch = useAppDispatch();
 	const { loading } = useAppSelector((state) => state.invoice);
 	const [invoice, setInvoice] = useState(initial);
-	const [message, setMessage] = useState<{
-		type: "success" | "error";
-		text: string;
-	} | null>(null);
-	const [messageVisible, setMessageVisible] = useState(false);
+	const router = useRouter();
 
 	// Helper function to convert ISO date to YYYY-MM-DD format for date input
 	const formatDateForInput = (dateString: string | null | undefined) => {
@@ -37,39 +34,30 @@ export default function InvoiceDetailForm({ invoice: initial }: any) {
 		}
 	};
 
-	const onChange = (k: string, v: any) =>
-		setInvoice((s: any) => ({ ...s, [k]: v }));
+	const onChange = (k: string, v: any) => {
+		setInvoice((s: any) => {
+			const updated = { ...s, [k]: v };
 
-	// Auto-hide message after 5 seconds
-	useEffect(() => {
-		if (messageVisible) {
-			const timer = setTimeout(() => {
-				setMessageVisible(false);
-				setTimeout(() => setMessage(null), 300); // Clear after fade out
-			}, 5000);
-			return () => clearTimeout(timer);
-		}
-	}, [messageVisible]);
+			// Recalculate totals when line items change
+			if (k === "line_items") {
+				const subtotal = (v || []).reduce(
+					(sum: number, item: any) => sum + Number(item.line_total ?? 0),
+					0
+				);
+				updated.subtotal = subtotal;
+				updated.total = subtotal;
+			}
 
-	const showAlert = (type: "success" | "error", text: string) => {
-		setMessage({ type, text });
-		setMessageVisible(true);
-	};
-
-	const hideAlert = () => {
-		setMessageVisible(false);
-		setTimeout(() => setMessage(null), 300);
+			return updated;
+		});
 	};
 
 	const save = async () => {
-		// Clear any existing message
-		hideAlert();
-
 		// Validate with Zod
 		const validation = validateInvoice(invoice);
 		if (!validation.success) {
 			const errors = validation.error.errors.map((e) => e.message).join(", ");
-			showAlert("error", `Validation failed: ${errors}`);
+			dispatch(showAlert({ message: `Validation failed: ${errors}`, severity: "error" }));
 			return;
 		}
 
@@ -78,15 +66,13 @@ export default function InvoiceDetailForm({ invoice: initial }: any) {
 				updateInvoice({ id: invoice.id, data: validation.data })
 			).unwrap();
 
-			// Update local invoice with the returned data first
+			// Update local invoice with the returned data
 			setInvoice(result);
 
-			// Show success message after a brief delay to ensure it renders
-			setTimeout(() => {
-				showAlert("success", "Invoice saved successfully!");
-			}, 100);
+			dispatch(showAlert({ message: "Invoice saved successfully!", severity: "success" }));
+			router.push('/');
 		} catch (e: any) {
-			showAlert("error", e?.message || "Save failed");
+			dispatch(showAlert({ message: e?.message || "Save failed", severity: "error" }));
 		}
 	};
 
@@ -130,12 +116,6 @@ export default function InvoiceDetailForm({ invoice: initial }: any) {
 				</Button>
 			</Box>
 
-			{/* Messages */}
-			{messageVisible && message && (
-				<Alert severity={message.type} onClose={hideAlert} sx={{ mb: 3 }}>
-					{message.text}
-				</Alert>
-			)}
 			<Divider sx={{ mb: 3 }} />
 
 			{/* Form Fields */}
@@ -189,6 +169,20 @@ export default function InvoiceDetailForm({ invoice: initial }: any) {
 
 				{/* Totals */}
 				<Box sx={{ display: "flex", justifyContent: "flex-end", gap: 4 }}>
+					<Box>
+						<Typography
+							variant="body2"
+							sx={{ color: "text.secondary", mb: 0.5 }}
+						>
+							Subtotal
+						</Typography>
+						<Typography
+							variant="body1"
+							sx={{ fontWeight: 600, fontSize: "1.1rem" }}
+						>
+							${Number(invoice.subtotal || 0).toFixed(2)}
+						</Typography>
+					</Box>
 					<Box sx={{ borderLeft: "2px solid", borderColor: "divider", pl: 4 }}>
 						<Typography
 							variant="body2"
@@ -204,7 +198,7 @@ export default function InvoiceDetailForm({ invoice: initial }: any) {
 								fontSize: "1.3rem",
 							}}
 						>
-							${invoice.total ?? "0.00"}
+							${Number(invoice.total || 0).toFixed(2)}
 						</Typography>
 					</Box>
 				</Box>
