@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
 	Paper,
 	TextField,
@@ -23,22 +23,53 @@ export default function InvoiceDetailForm({ invoice: initial }: any) {
 	const [message, setMessage] = useState<{
 		type: "success" | "error";
 		text: string;
-	} | null>();
-	const [showMessage, setShowMessage] = useState(true);
+	} | null>(null);
+	const [messageVisible, setMessageVisible] = useState(false);
+
+	// Helper function to convert ISO date to YYYY-MM-DD format for date input
+	const formatDateForInput = (dateString: string | null | undefined) => {
+		if (!dateString) return "";
+		try {
+			const date = new Date(dateString);
+			return date.toISOString().split("T")[0];
+		} catch {
+			return "";
+		}
+	};
 
 	const onChange = (k: string, v: any) =>
 		setInvoice((s: any) => ({ ...s, [k]: v }));
 
+	// Auto-hide message after 5 seconds
+	useEffect(() => {
+		if (messageVisible) {
+			const timer = setTimeout(() => {
+				setMessageVisible(false);
+				setTimeout(() => setMessage(null), 300); // Clear after fade out
+			}, 5000);
+			return () => clearTimeout(timer);
+		}
+	}, [messageVisible]);
+
+	const showAlert = (type: "success" | "error", text: string) => {
+		setMessage({ type, text });
+		setMessageVisible(true);
+	};
+
+	const hideAlert = () => {
+		setMessageVisible(false);
+		setTimeout(() => setMessage(null), 300);
+	};
+
 	const save = async () => {
-		// setMessage(null);
+		// Clear any existing message
+		hideAlert();
 
 		// Validate with Zod
 		const validation = validateInvoice(invoice);
 		if (!validation.success) {
 			const errors = validation.error.errors.map((e) => e.message).join(", ");
-			setMessage({ type: "error", text: `Validation failed: ${errors}` });
-			setShowMessage(true);
-			setTimeout(() => setShowMessage(false), 5000);
+			showAlert("error", `Validation failed: ${errors}`);
 			return;
 		}
 
@@ -46,15 +77,16 @@ export default function InvoiceDetailForm({ invoice: initial }: any) {
 			const result = await dispatch(
 				updateInvoice({ id: invoice.id, data: validation.data })
 			).unwrap();
-			// Update local invoice with the returned data
+
+			// Update local invoice with the returned data first
 			setInvoice(result);
-			setMessage({ type: "success", text: "Invoice saved successfully!" });
-			setShowMessage(true);
-			setTimeout(() => setShowMessage(false), 5000);
+
+			// Show success message after a brief delay to ensure it renders
+			setTimeout(() => {
+				showAlert("success", "Invoice saved successfully!");
+			}, 100);
 		} catch (e: any) {
-			setMessage({ type: "error", text: e?.message || "Save failed" });
-			setShowMessage(true);
-			setTimeout(() => setShowMessage(false), 5000);
+			showAlert("error", e?.message || "Save failed");
 		}
 	};
 
@@ -83,6 +115,9 @@ export default function InvoiceDetailForm({ invoice: initial }: any) {
 					<Typography variant="body2" sx={{ color: "text.secondary" }}>
 						Status: <strong>{invoice.status || "PENDING"}</strong>
 					</Typography>
+					<Typography variant="body2" sx={{ color: "text.secondary" }}>
+						Confidence: <strong>{invoice.confidence || "0.01"}</strong>
+					</Typography>
 				</Box>
 				<Button
 					variant="contained"
@@ -96,22 +131,11 @@ export default function InvoiceDetailForm({ invoice: initial }: any) {
 			</Box>
 
 			{/* Messages */}
-			{/* {message && (
-				<Alert
-					severity={message.type}
-					onClose={() => setMessage(null)}
-					sx={{ mb: 3 }}
-				>
+			{messageVisible && message && (
+				<Alert severity={message.type} onClose={hideAlert} sx={{ mb: 3 }}>
 					{message.text}
 				</Alert>
-			)} */}
-			{showMessage && (<Alert
-				severity={message?.type}
-				onClose={() => setMessage(null)}
-				sx={{ mb: 3 }}
-			>
-				{message?.text}
-			</Alert>)}
+			)}
 			<Divider sx={{ mb: 3 }} />
 
 			{/* Form Fields */}
@@ -139,7 +163,7 @@ export default function InvoiceDetailForm({ invoice: initial }: any) {
 					/>
 					<TextField
 						label="Invoice Date"
-						value={invoice.invoice_date ?? ""}
+						value={formatDateForInput(invoice.invoice_date)}
 						onChange={(e) => onChange("invoice_date", e.target.value)}
 						fullWidth
 						size="small"
@@ -165,20 +189,6 @@ export default function InvoiceDetailForm({ invoice: initial }: any) {
 
 				{/* Totals */}
 				<Box sx={{ display: "flex", justifyContent: "flex-end", gap: 4 }}>
-					<Box>
-						<Typography
-							variant="body2"
-							sx={{ color: "text.secondary", mb: 0.5 }}
-						>
-							Subtotal
-						</Typography>
-						<Typography
-							variant="body1"
-							sx={{ fontWeight: 600, fontSize: "1.1rem" }}
-						>
-							${invoice.subtotal?.toFixed?.(2) ?? "0.00"}
-						</Typography>
-					</Box>
 					<Box sx={{ borderLeft: "2px solid", borderColor: "divider", pl: 4 }}>
 						<Typography
 							variant="body2"
@@ -194,7 +204,7 @@ export default function InvoiceDetailForm({ invoice: initial }: any) {
 								fontSize: "1.3rem",
 							}}
 						>
-							${invoice.total?.toFixed?.(2) ?? "0.00"}
+							${invoice.total ?? "0.00"}
 						</Typography>
 					</Box>
 				</Box>
