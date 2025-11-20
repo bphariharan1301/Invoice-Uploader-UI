@@ -64,9 +64,11 @@ export const invoiceApi = {
     return response.data;
   },
 
-  // Get all invoices
-  getAll: async () => {
-    const response = await apiClient.get<Invoice[]>("/api/invoices");
+  // Get all invoices (supports server-side pagination)
+  getAll: async (params?: { page?: number; limit?: number }) => {
+    const response = await apiClient.get<any>("/api/invoices", { params });
+    // Server may return a plain array or a paginated object { page, limit, total, invoices }
+    console.log("Invoices: ", response.data);
     return response.data;
   },
 

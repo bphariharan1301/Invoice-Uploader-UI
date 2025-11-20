@@ -2,7 +2,7 @@ import { z } from "zod";
 
 // Line Item Schema
 export const LineItemSchema = z.object({
-  id: z.string().optional(),
+  id: z.string().or(z.number()).optional(),
   description: z.string().min(1, "Description is required"),
   quantity: z.number().min(0, "Quantity must be positive").or(z.string().transform(Number)),
   unit_price: z.number().min(0, "Unit price must be positive").or(z.string().transform(Number)),

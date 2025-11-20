@@ -1,27 +1,29 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import type { Invoice } from '../../schemas/invoice.schema';
 import { invoiceApi } from '../../api/client';
-
-interface InvoiceState {
-  invoices: Invoice[];
-  currentInvoice: Invoice | null;
-  loading: boolean;
-  error: string | null;
-}
+import { InvoiceState } from '@/constants';
+import type { Invoice } from '@/lib/schemas/invoice.schema'
+import { apiUploadFile, apiTriggerExtract } from '@/lib/api/invoices';
 
 const initialState: InvoiceState = {
   invoices: [],
   currentInvoice: null,
   loading: false,
   error: null,
+  page: 1,
+  limit: 25,
+  total: 0,
 };
 
 // Async Thunks
 export const fetchInvoices = createAsyncThunk(
   'invoice/fetchInvoices',
-  async (_, { rejectWithValue }) => {
+  async (
+    params: { page?: number; limit?: number } = {},
+    { rejectWithValue }
+  ) => {
     try {
-      const data = await invoiceApi.getAll();
+      const data = await invoiceApi.getAll(params);
+      console.log('Thunk Recieved data: ', data);
       return data;
     } catch (error: any) {
       return rejectWithValue(
@@ -77,17 +79,43 @@ export const deleteInvoice = createAsyncThunk(
 );
 
 export const uploadFile = createAsyncThunk(
-  'invoice/uploadFile',
-  async (file: File, { rejectWithValue, dispatch }) => {
+  "invoice/uploadFile",
+  async (file: File, { rejectWithValue }) => {
     try {
-      const result = await invoiceApi.uploadFile(file);
-      // Refresh invoice list after upload
-      dispatch(fetchInvoices());
-      return result;
-    } catch (error: any) {
-      return rejectWithValue(
-        error.response?.data?.error || error.message || 'Failed to upload file'
-      );
+      // 1) Upload
+      const uploadResult = await invoiceApi.uploadFile(file);
+
+      const invoiceId =
+        uploadResult?.id ??
+        null;
+
+      if (!invoiceId) {
+        return rejectWithValue({
+          message: "Upload succeeded but no invoice ID returned from server.",
+        });
+      }
+
+      // 2) BLOCKING extraction
+      let extractResult;
+      try {
+        extractResult = await invoiceApi.extract(invoiceId);
+      } catch (err: any) {
+        return rejectWithValue({
+          message: err?.response?.data || err?.message || "Extraction failed",
+          upload: uploadResult,
+        });
+      }
+
+      // 3) Final consistent return shape
+      return {
+        id: invoiceId,
+        upload: uploadResult,
+        extract: extractResult,
+      };
+    } catch (err: any) {
+      return rejectWithValue({
+        message: err?.response?.data || err?.message || "Upload failed",
+      });
     }
   }
 );
@@ -114,7 +142,19 @@ const invoiceSlice = createSlice({
       })
       .addCase(fetchInvoices.fulfilled, (state, action) => {
         state.loading = false;
-        state.invoices = action.payload;
+        // Normalize payload: API may return either an array or a paginated object { page, limit, total, invoices }
+        const payload: any = action.payload;
+        if (Array.isArray(payload)) {
+          state.invoices = payload as Invoice[];
+          // leave pagination defaults
+        } else if (payload && Array.isArray(payload.invoices)) {
+          state.invoices = payload.invoices as Invoice[];
+          state.page = payload.page ?? state.page;
+          state.limit = payload.limit ?? state.limit;
+          state.total = payload.total ?? state.total;
+        } else {
+          state.invoices = [];
+        }
       })
       .addCase(fetchInvoices.rejected, (state, action) => {
         state.loading = false;

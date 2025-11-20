@@ -7,6 +7,7 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import { useAppDispatch, useAppSelector } from "@/lib/store";
 import { uploadFile, clearError } from "@/lib/store/slices/invoiceSlice";
 import { validateUploadFile } from "@/lib/schemas/invoice.schema";
+import { useRouter } from "next/navigation";
 
 export default function UploadCard() {
   const dispatch = useAppDispatch();
@@ -15,6 +16,7 @@ export default function UploadCard() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const router = useRouter();
 
   const onFile = useCallback((selectedFile?: File) => {
     if (!selectedFile) return;
@@ -86,7 +88,7 @@ export default function UploadCard() {
       // Redirect to invoice detail page
       if (result?.id) {
         setTimeout(() => {
-          window.location.href = `/invoices/${result.id}`;
+          router.push(`/invoices/${result.id}`);
         }, 500);
       }
     } catch (err: any) {

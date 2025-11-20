@@ -13,11 +13,12 @@ import {
  */
 export const useInvoices = (autoFetch = true) => {
   const dispatch = useAppDispatch();
-  const { invoices, loading, error } = useAppSelector((state) => state.invoice);
+  const { invoices, loading, error, page, limit, total } = useAppSelector((state) => state.invoice);
 
   useEffect(() => {
     if (autoFetch) {
-      dispatch(fetchInvoices());
+      dispatch(fetchInvoices({ page }));
+      console.log('useInvoices Invoice: ', invoices);
     }
   }, [autoFetch, dispatch]);
 
@@ -25,7 +26,11 @@ export const useInvoices = (autoFetch = true) => {
     invoices,
     loading,
     error,
-    refetch: () => dispatch(fetchInvoices()),
+    page,
+    limit,
+    total,
+    refetch: (p?: number) => dispatch(fetchInvoices({ page: p ?? page })),
+    setPage: (p: number) => dispatch(fetchInvoices({ page: p })),
     deleteInvoice: (id: string | number) => dispatch(deleteInvoice(id)),
     clearError: () => dispatch(clearError()),
   };

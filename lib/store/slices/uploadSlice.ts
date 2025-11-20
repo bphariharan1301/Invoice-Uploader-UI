@@ -1,12 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { UploadState } from '@/constants';
 
-interface UploadState {
-  file: File | null;
-  progress: number;
-  uploading: boolean;
-  error: string | null;
-  previewUrl: string | null;
-}
 
 const initialState: UploadState = {
   file: null,
