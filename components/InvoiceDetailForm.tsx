@@ -20,35 +20,41 @@ export default function InvoiceDetailForm({ invoice: initial }: any) {
 	const dispatch = useAppDispatch();
 	const { loading } = useAppSelector((state) => state.invoice);
 	const [invoice, setInvoice] = useState(initial);
-	console.log("Invoice is: ", invoice);
 	const [message, setMessage] = useState<{
 		type: "success" | "error";
 		text: string;
-	} | null>(null);
+	} | null>();
+	const [showMessage, setShowMessage] = useState(true);
 
 	const onChange = (k: string, v: any) =>
 		setInvoice((s: any) => ({ ...s, [k]: v }));
 
 	const save = async () => {
-		setMessage(null);
+		// setMessage(null);
 
 		// Validate with Zod
-		console.log("Invoice: ", invoice);
 		const validation = validateInvoice(invoice);
-		console.log("Validation: ", validation);
 		if (!validation.success) {
 			const errors = validation.error.errors.map((e) => e.message).join(", ");
 			setMessage({ type: "error", text: `Validation failed: ${errors}` });
+			setShowMessage(true);
+			setTimeout(() => setShowMessage(false), 5000);
 			return;
 		}
 
 		try {
-			await dispatch(
+			const result = await dispatch(
 				updateInvoice({ id: invoice.id, data: validation.data })
 			).unwrap();
+			// Update local invoice with the returned data
+			setInvoice(result);
 			setMessage({ type: "success", text: "Invoice saved successfully!" });
+			setShowMessage(true);
+			setTimeout(() => setShowMessage(false), 5000);
 		} catch (e: any) {
 			setMessage({ type: "error", text: e?.message || "Save failed" });
+			setShowMessage(true);
+			setTimeout(() => setShowMessage(false), 5000);
 		}
 	};
 
@@ -90,7 +96,7 @@ export default function InvoiceDetailForm({ invoice: initial }: any) {
 			</Box>
 
 			{/* Messages */}
-			{message && (
+			{/* {message && (
 				<Alert
 					severity={message.type}
 					onClose={() => setMessage(null)}
@@ -98,8 +104,14 @@ export default function InvoiceDetailForm({ invoice: initial }: any) {
 				>
 					{message.text}
 				</Alert>
-			)}
-
+			)} */}
+			{showMessage && (<Alert
+				severity={message?.type}
+				onClose={() => setMessage(null)}
+				sx={{ mb: 3 }}
+			>
+				{message?.text}
+			</Alert>)}
 			<Divider sx={{ mb: 3 }} />
 
 			{/* Form Fields */}
