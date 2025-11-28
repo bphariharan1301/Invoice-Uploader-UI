@@ -169,7 +169,7 @@ export default function InvoiceDetailForm({ invoice: initial }: any) {
 
 				{/* Totals */}
 				<Box sx={{ display: "flex", justifyContent: "flex-end", gap: 4 }}>
-					<Box>
+					{/* <Box>
 						<Typography
 							variant="body2"
 							sx={{ color: "text.secondary", mb: 0.5 }}
@@ -182,7 +182,7 @@ export default function InvoiceDetailForm({ invoice: initial }: any) {
 						>
 							${Number(invoice.subtotal || 0).toFixed(2)}
 						</Typography>
-					</Box>
+					</Box> */}
 					<Box sx={{ borderLeft: "2px solid", borderColor: "divider", pl: 4 }}>
 						<Typography
 							variant="body2"
